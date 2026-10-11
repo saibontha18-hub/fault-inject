@@ -15,6 +15,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define FI_ANY_FRAME (-1)  /* fault applies to every frame, not just one */
 #define FI_ANY_POS   (-1)  /* pick the byte/bit position from the PRNG */
@@ -59,6 +60,7 @@ typedef enum {
 
 void fi_init(fi_t *f, uint64_t seed);
 int  fi_arm(fi_t *f, fi_fault_t fault);   /* 0 on success, -1 if table full */
+void fi_clear(fi_t *f);                   /* disarm everything, keep the clock */
 
 fi_decision_t fi_decide(fi_t *f, const uint8_t *frame, size_t len);
 
@@ -75,5 +77,9 @@ uint64_t fi_now(const fi_t *f);
 
 /* Raw deterministic randomness, exposed so tests can verify repeatability. */
 uint32_t fi_rand32(fi_t *f);
+
+/* Session report: seed, armed faults, what fired, virtual time. Print it
+ * when a run fails and you get a replayable record for free. */
+void fi_report(const fi_t *f, FILE *out);
 
 #endif /* FI_H */

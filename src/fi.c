@@ -1,5 +1,7 @@
 #include "fi.h"
 
+#include <stdio.h>
+
 /* xorshift64*: small, fast, and — critically — deterministic. A seeded
  * PRNG means a failing fault run can be replayed bit-for-bit by reusing
  * the seed in the report. No rand(), no time(NULL), no surprises. */
@@ -33,6 +35,15 @@ int fi_arm(fi_t *f, fi_fault_t fault)
         return -1;
     f->faults[f->nfaults++] = fault;
     return 0;
+}
+
+void fi_clear(fi_t *f)
+{
+    /* Mid-campaign reset: drop every armed fault and zero the fired
+     * count, but leave frame_no and the virtual clock alone — whatever
+     * is happening on the wire keeps happening, just without faults. */
+    f->nfaults = 0;
+    f->fired = 0;
 }
 
 uint32_t fi_rand32(fi_t *f)
@@ -159,4 +170,36 @@ void fi_advance(fi_t *f, uint64_t nominal_us)
 uint64_t fi_now(const fi_t *f)
 {
     return f->vclock_us;
+}
+
+static const char *kind_name(fi_kind_t k)
+{
+    switch (k) {
+    case FI_DROP:         return "DROP";
+    case FI_DUPLICATE:    return "DUPLICATE";
+    case FI_BIT_FLIP:    return "BIT_FLIP";
+    case FI_BYTE_CORRUPT: return "BYTE_CORRUPT";
+    case FI_STUCK_AT:    return "STUCK_AT";
+    case FI_TRUNCATE:     return "TRUNCATE";
+    }
+    return "?";
+}
+
+void fi_report(const fi_t *f, FILE *out)
+{
+    int i;
+
+    fprintf(out, "fault-inject session report\n");
+    fprintf(out, "  seed: %llu\n", (unsigned long long)f->seed);
+    fprintf(out, "  frames: %d  virtual time: %llu us  faults fired: %d\n",
+            f->frame_no, (unsigned long long)f->vclock_us, f->fired);
+    fprintf(out, "  armed faults (%d):\n", f->nfaults);
+    for (i = 0; i < f->nfaults; i++) {
+        const fi_fault_t *ft = &f->faults[i];
+        fprintf(out, "    [%d] %-12s frame=%d byte=%d bit=%d value=0x%02x count=%d\n",
+                i, kind_name(ft->kind), ft->frame, ft->byte_pos, ft->bit,
+                ft->value, ft->count);
+    }
+    fprintf(out, "  replay: fi_init(&f, %llu) and arm the same faults in order.\n",
+            (unsigned long long)f->seed);
 }
