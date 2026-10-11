@@ -1,0 +1,5 @@
+# local build outputs
+safety_demo
+test_fi
+*.o
+*.a
